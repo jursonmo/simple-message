@@ -2,6 +2,15 @@
 
 simple-message 是一个基于 Go 语言开发的轻量级消息通信框架，专注于提供简洁、高效的客户端与服务器端通信能力，支持自定义消息处理和连接管理，适用于构建各类基于消息的网络应用。
 
+[![go.dev reference](https://img.shields.io/badge/go.dev-reference-007d9c?logo=go&logoColor=white&style=flat-square)](https://pkg.go.dev/github.com/paulnegz/langgraphgo)
+
+> 🔀 **Forked from [s84662355/simple-message](https://github.com/s84662355/simple-message)** - 完善用法.
+
+## 📦 Installation
+
+```bash
+go get github.com/jursonmo/simple-message
+```
 ## 核心设计
 
 ### 协议规范
