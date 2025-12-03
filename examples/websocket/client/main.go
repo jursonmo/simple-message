@@ -8,9 +8,9 @@ import (
 	"syscall"
 
 	"github.com/gorilla/websocket"
-	"github.com/s84662355/simple-message/client"
-	"github.com/s84662355/simple-message/connection"
-	www "github.com/s84662355/simple-message/examples/websocket"
+	"github.com/jursonmo/simple-message/client"
+	"github.com/jursonmo/simple-message/connection"
+	www "github.com/jursonmo/simple-message/examples/websocket"
 )
 
 // Handler1 消息处理器，用于处理MsgID=1的消息

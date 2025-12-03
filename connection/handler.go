@@ -5,7 +5,7 @@ import (
 	"maps"
 	"sync"
 
-	"github.com/s84662355/simple-message/protocol"
+	"github.com/jursonmo/simple-message/protocol"
 )
 
 type Handler interface {
@@ -44,7 +44,7 @@ func NewHandlerManager(
 	h.ctx, h.cancel = context.WithCancel(context.Background())
 
 	go func() {
-		defer close(h.done) 
+		defer close(h.done)
 		wg := &sync.WaitGroup{}
 		defer wg.Wait()
 		wg.Add(3)
@@ -89,7 +89,7 @@ func (h *HandlerManager) Err() error {
 }
 
 func (h *HandlerManager) stop() {
-    h.merr(ErrIsClose)
+	h.merr(ErrIsClose)
 	h.conn.Close()
 	h.readWriteCloser.Close()
 	h.cancel()

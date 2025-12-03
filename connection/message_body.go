@@ -3,7 +3,7 @@ package connection
 import (
 	"sync/atomic"
 
-	"github.com/s84662355/simple-message/protocol"
+	"github.com/jursonmo/simple-message/protocol"
 )
 
 type T func() error

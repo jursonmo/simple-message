@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/s84662355/simple-message/protocol"
+	"github.com/jursonmo/simple-message/protocol"
 )
 
 type Connection struct {

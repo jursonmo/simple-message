@@ -54,7 +54,7 @@ go get github.com/jursonmo/simple-message
 
 ```bash
 # 要求Go 1.23.4及以上版本
-go get github.com/s84662355/simple-message
+go get github.com/jursonmo/simple-message
 ```
 
 ## 快速上手

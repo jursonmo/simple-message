@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/gorilla/websocket"
-	"github.com/s84662355/simple-message/connection" // 替换为你的 connection 包路径
+	"github.com/jursonmo/simple-message/connection" // 替换为你的 connection 包路径
 )
 
 // WebSocketListener 实现 Listener 接口，用于监听 WebSocket 连接

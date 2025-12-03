@@ -5,7 +5,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/s84662355/simple-message/connection"
+	"github.com/jursonmo/simple-message/connection"
 )
 
 type Server struct {

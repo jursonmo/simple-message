@@ -6,10 +6,11 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 
-	"github.com/s84662355/simple-message/client"
-	"github.com/s84662355/simple-message/connection"
+	"github.com/jursonmo/simple-message/client"
+	"github.com/jursonmo/simple-message/connection"
 )
 
 // Handler1 消息处理器，用于处理MsgID=1的消息
@@ -74,8 +75,10 @@ func main() {
 	defer func() {
 		fmt.Println("正在关闭客户端...")
 		// 等待客户端完全停止
+		fmt.Printf("当前Goroutine数量: %d\n", runtime.NumGoroutine())
 		<-c.Stop()
 		fmt.Println("客户端已完全停止")
+		fmt.Printf("当前Goroutine数量: %d\n", runtime.NumGoroutine())
 	}()
 
 	// 设置信号监听，处理程序退出

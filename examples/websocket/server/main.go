@@ -8,9 +8,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/s84662355/simple-message/connection"
-	www "github.com/s84662355/simple-message/examples/websocket"
-	"github.com/s84662355/simple-message/server"
+	"github.com/jursonmo/simple-message/connection"
+	www "github.com/jursonmo/simple-message/examples/websocket"
+	"github.com/jursonmo/simple-message/server"
 )
 
 // Handler1 消息处理器，用于处理MsgID=1的消息
