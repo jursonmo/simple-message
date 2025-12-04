@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/jursonmo/simple-message/connection"
 	"github.com/jursonmo/simple-message/server"
@@ -19,10 +20,21 @@ type Handler1 struct{}
 // Handle 实现消息处理接口
 func (h *Handler1) Handle(request connection.IRequest) {
 	// 可以通过以下方法获取消息数据和ID
-	// data := request.GetData()
-	// msgID := request.GetMsgID()
+	data := request.GetData()
+	msgID := request.GetMsgID()
+	// 打印收到的消息
+	fmt.Printf("收到消息 - MsgID: %d, Data: %s\n", msgID, string(data))
 
 	// 此处可添加消息处理逻辑
+	// 模拟处理延迟
+	time.Sleep(1 * time.Second)
+
+	// 向客户端发送确认消息（MsgID=1）
+	if err := request.GetConnection().SendMsg(1, []byte("hello from server")); err != nil {
+		fmt.Printf("发送确认消息失败: %v\n", err)
+		return
+	}
+	fmt.Printf("确认消息已发送 - MsgID: %d\n", msgID)
 }
 
 // Listener 自定义监听器实现，包装net.Listener
@@ -116,7 +128,7 @@ func main() {
 		signalChan,
 		syscall.SIGINT,  // Ctrl+C中断
 		syscall.SIGTERM, // 终止信号
-		os.Kill,         // 强制终止
+		//os.Kill,       // 强制终止
 	)
 
 	fmt.Println("服务器已启动，监听端口: 2000")

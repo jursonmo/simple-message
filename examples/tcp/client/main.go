@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"runtime"
 	"syscall"
+	"time"
 
 	"github.com/jursonmo/simple-message/client"
 	"github.com/jursonmo/simple-message/connection"
@@ -18,9 +19,17 @@ type Handler1 struct{}
 
 // Handle 实现消息处理接口，打印收到的消息ID和内容
 func (h *Handler1) Handle(request connection.IRequest) {
-	fmt.Printf("收到消息 - ID: %d, 内容: %s\n",
-		request.GetMsgID(),
-		string(request.GetData()))
+	fmt.Printf("收到消息 - ID: %d, 内容: %s\n", request.GetMsgID(), string(request.GetData()))
+
+	time.Sleep(time.Second)
+	// 从请求中获取连接实例
+	conn := request.GetConnection()
+	// 发送消息 - MsgID=1, 内容="hello from client"
+	if err := conn.SendMsg(1, []byte("hello from client")); err != nil {
+		fmt.Printf("发送消息失败: %v\n", err)
+		panic(err)
+	}
+	fmt.Printf("消息已发送 - MsgID: %d, 内容: %s\n", 1, "hello from client")
 }
 
 type Action struct{}
@@ -55,6 +64,14 @@ func (a *Action) ConnErr(ctx context.Context, conn *connection.Connection, err e
 
 func (a *Action) ConnectedBegin(ctx context.Context, conn *connection.Connection) {
 	fmt.Printf("成功连接到服务器: %v\n", conn)
+	fmt.Printf("当前Goroutine数量: %d\n", runtime.NumGoroutine())
+
+	// 发送消息 - MsgID=1, 内容="hello from client"
+	if err := conn.SendMsg(1, []byte("hello from client")); err != nil {
+		fmt.Printf("发送消息失败: %v\n", err)
+		return
+	}
+	fmt.Printf("消息已发送 - MsgID: %d, 内容: %s\n", 1, "hello from client")
 }
 
 func main() {
@@ -87,7 +104,7 @@ func main() {
 		signalChan,
 		syscall.SIGINT,  // Ctrl+C中断
 		syscall.SIGTERM, // 终止信号
-		os.Kill,         // 强制终止
+		//os.Kill,       // 强制终止
 	)
 
 	fmt.Println("客户端已启动，正在连接到服务器 127.0.0.1:2000...")
