@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"sync"
 	"sync/atomic"
 
 	"github.com/jursonmo/simple-message/connection"
+	"github.com/jursonmo/simple-message/protocol"
+	"github.com/jursonmo/simple-message/stats"
 )
 
 var (
@@ -15,6 +18,7 @@ var (
 )
 
 type Client struct {
+	sync.RWMutex
 	handler     map[uint32]connection.Handler
 	ctx         context.Context
 	cancel      context.CancelFunc
@@ -22,20 +26,74 @@ type Client struct {
 	action      Action
 	done        chan struct{}
 	connPointer atomic.Pointer[connection.Connection]
+
+	stats *stats.HandlerStats
+}
+
+type ClientOption func(*Client)
+
+func WithMaxDataLen(maxDataLen uint32) ClientOption {
+	return func(c *Client) {
+		c.maxDataLen = maxDataLen
+	}
+}
+func WithHandlers(handler map[uint32]connection.Handler) ClientOption {
+	return func(c *Client) {
+		c.handler = maps.Clone(handler)
+	}
 }
 
 func NewClient(
-	handler map[uint32]connection.Handler,
-	maxDataLen uint32,
 	action Action,
+	opts ...ClientOption,
 ) *Client {
 	c := &Client{
-		handler:    maps.Clone(handler),
 		action:     action,
-		maxDataLen: maxDataLen,
+		maxDataLen: protocol.MaxDataLen,
+		handler:    make(map[uint32]connection.Handler),
+		stats:      stats.NewHandlerStats(),
 	}
 
-	c.ctx, c.cancel = context.WithCancel(context.Background())
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
+}
+
+func (c *Client) AddHandler(MsgID uint32, handler connection.Handler) {
+	c.Lock()
+	defer c.Unlock()
+	c.handler[MsgID] = handler
+}
+
+func (c *Client) RemoveHandler(MsgID uint32) {
+	c.Lock()
+	defer c.Unlock()
+	delete(c.handler, MsgID)
+}
+
+func (c *Client) handleMsg(conn *connection.Connection, msg *protocol.Message) {
+	c.RLock()
+	handler, ok := c.handler[msg.MsgID]
+	c.RUnlock()
+	if !ok {
+		c.stats.IncUnknownMsg()
+		return
+	}
+	req := connection.NewRequest(
+		conn,
+		msg.MsgID,
+		msg.Data,
+	)
+	if handler.Handle(req) == nil {
+		c.stats.AddSuccessBytes(msg.MsgID, uint64(len(msg.Data)))
+	} else {
+		c.stats.AddFailedBytes(msg.MsgID, uint64(len(msg.Data)))
+	}
+}
+
+func (c *Client) Start(ctx context.Context) {
+	c.ctx, c.cancel = context.WithCancel(ctx)
 
 	c.done = make(chan struct{})
 	go func() {
@@ -43,8 +101,6 @@ func NewClient(
 		c.start()
 		c.cancel()
 	}()
-
-	return c
 }
 
 func (c *Client) Stop() <-chan struct{} {
@@ -87,7 +143,7 @@ func (c *Client) dial() {
 		defer conn.Close()
 		handlerManager := connection.NewHandlerManager(
 			conn,
-			c.handler,
+			c.handleMsg,
 			c.maxDataLen,
 			c.action.ConnectedBegin,
 			data,

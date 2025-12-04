@@ -18,8 +18,8 @@ import (
 type Handler1 struct{}
 
 // Handle 实现消息处理接口，打印收到的消息ID和内容
-func (h *Handler1) Handle(request connection.IRequest) {
-	fmt.Printf("收到消息 - ID: %d, 内容: %s\n", request.GetMsgID(), string(request.GetData()))
+func (h *Handler1) Handle(request connection.IRequest) error {
+	fmt.Printf("Handler1 收到消息 - ID: %d, 内容: %s\n", request.GetMsgID(), string(request.GetData()))
 
 	time.Sleep(time.Second)
 	// 从请求中获取连接实例
@@ -28,8 +28,19 @@ func (h *Handler1) Handle(request connection.IRequest) {
 	if err := conn.SendMsg(1, []byte("hello from client")); err != nil {
 		fmt.Printf("发送消息失败: %v\n", err)
 		panic(err)
+		//return err
 	}
 	fmt.Printf("消息已发送 - MsgID: %d, 内容: %s\n", 1, "hello from client")
+	return nil
+}
+
+// Handler2 消息处理器，用于处理MsgID=2的消息
+type Handler2 struct{}
+
+// Handle 实现消息处理接口，打印收到的消息ID和内容
+func (h *Handler2) Handle(request connection.IRequest) error {
+	fmt.Printf("Handler2 收到消息 - ID: %d, 内容: %s\n", request.GetMsgID(), string(request.GetData()))
+	return nil
 }
 
 type Action struct{}
@@ -82,11 +93,16 @@ func main() {
 
 	// 创建客户端实例
 	c := client.NewClient(
-
-		handlers,  // 消息处理器映射
-		1024*1024, // 最大数据长度 (1MB)
 		new(Action),
+		client.WithHandlers(handlers),    // 消息处理器映射
+		client.WithMaxDataLen(1024*1024), // 最大数据长度 (1MB)
 	)
+
+	// 启动客户端
+	c.Start(context.Background())
+
+	// 在运行时也可以临时添加消息处理器，MsgID=2对应Handler2
+	c.AddHandler(2, &Handler2{})
 
 	// 确保程序退出时正确停止客户端
 	defer func() {

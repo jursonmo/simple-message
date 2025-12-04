@@ -17,12 +17,13 @@ import (
 type Handler1 struct{}
 
 // Handle 实现消息处理接口
-func (h *Handler1) Handle(request connection.IRequest) {
+func (h *Handler1) Handle(request connection.IRequest) error {
 	// 可以通过以下方法获取消息数据和ID
 	// data := request.GetData()
 	// msgID := request.GetMsgID()
 
 	// 此处可添加消息处理逻辑
+	return nil
 }
 
 type Action struct{}
@@ -56,14 +57,14 @@ func main() {
 	// 创建服务器实例
 	srv := server.NewServer(
 		customListener,
-		handlers,
-		1024*1024, // 最大数据长度 (1MB)
-		1024,      // 最大连接数
 		new(Action),
+		server.WithHandlers(handlers),
 	)
 
 	// 启动服务器，使用16个accept协程
-	done := srv.Start(16)
+	ctx, cancel := context.WithCancel(context.Background())
+	_ = cancel //TODO: 取消ctx时，应该可以关闭server
+	done := srv.Start(ctx, 16)
 	defer func() {
 		// 停止服务器并等待完成
 		srv.Stop()
@@ -77,7 +78,7 @@ func main() {
 		signalChan,
 		syscall.SIGINT,  // Ctrl+C中断
 		syscall.SIGTERM, // 终止信号
-		os.Kill,         // 强制终止
+		//os.Kill,         // 强制终止
 	)
 
 	fmt.Println("服务器已启动，监听端口: 18080")

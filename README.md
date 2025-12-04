@@ -2,7 +2,7 @@
 
 simple-message 是一个基于 Go 语言开发的轻量级消息通信框架，专注于提供简洁、高效的客户端与服务器端通信能力，支持自定义消息处理和连接管理，适用于构建各类基于消息的网络应用。
 
-> 🔀 **Forked from [s84662355/simple-message](https://github.com/s84662355/simple-message)** - simple-message look like inspired by zinx , but more lightweight and concise(更加轻量简洁), 我打算在它的基础上完善下.
+> 🔀 **Forked from [s84662355/simple-message](https://github.com/s84662355/simple-message)** - simple-message look like inspired by zinx , but more lightweight and concise(更加轻量简洁), 我打算在它的基础上完善下: 1. 可以动态添加handler. 2. 添加每种消息的统计。3. Start(context) 可以关联上层业务，上层业务退出自动退出, 不需要手动Stop.
 
 ## 📦 Installation
 

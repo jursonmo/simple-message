@@ -17,7 +17,7 @@ const (
 	HeaderDataLen = uint32(4) ///头部长度
 	DataSizeLen   = uint32(4) // 数据大小字段的长度，单位为字节
 	ReadLen       = HeaderDataLen + DataSizeLen
-	MaxDataLen    = uint32(8 * 1024)
+	MaxDataLen    = uint32(1024 * 1024 * 2) // 默认最大数据长度 (2MB)
 )
 
 type Decoder struct {

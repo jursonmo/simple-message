@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/jursonmo/simple-message/connection"
+	"github.com/jursonmo/simple-message/protocol"
 )
 
 func (m *Server) accept(ctx context.Context) {
@@ -18,7 +19,8 @@ func (m *Server) accept(ctx context.Context) {
 			return
 		}
 
-		if m.connCount.Add(1) > m.maxConnCount {
+		count := m.connCount.Add(1)
+		if m.maxConnCount > 0 && count > m.maxConnCount {
 			m.connCount.Add(-1)
 			conn.Close()
 			continue
@@ -38,7 +40,7 @@ func (m *Server) accept(ctx context.Context) {
 func (m *Server) handlerTcpConn(ctx context.Context, conn connection.Conn, data any) {
 	handlerManager := connection.NewHandlerManager(
 		conn,
-		m.handler,
+		m.handleMsg,
 		m.maxDataLen,
 		m.action.ConnectedBegin,
 		data,
@@ -53,5 +55,26 @@ func (m *Server) handlerTcpConn(ctx context.Context, conn connection.Conn, data 
 		return
 	case <-handlerManager.Ctx().Done():
 		return
+	}
+}
+
+func (m *Server) handleMsg(conn *connection.Connection, msg *protocol.Message) {
+	m.handlerMu.RLock()
+	handler, ok := m.handler[msg.MsgID]
+	m.handlerMu.RUnlock()
+	if !ok {
+		m.stats.IncUnknownMsg()
+		return
+	}
+	req := connection.NewRequest(
+		conn,
+		msg.MsgID,
+		msg.Data,
+	)
+
+	if handler.Handle(req) == nil {
+		m.stats.AddSuccessBytes(msg.MsgID, uint64(len(msg.Data)))
+	} else {
+		m.stats.AddFailedBytes(msg.MsgID, uint64(len(msg.Data)))
 	}
 }

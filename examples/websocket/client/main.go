@@ -17,10 +17,11 @@ import (
 type Handler1 struct{}
 
 // Handle 实现消息处理接口，打印收到的消息ID和内容
-func (h *Handler1) Handle(request connection.IRequest) {
+func (h *Handler1) Handle(request connection.IRequest) error {
 	fmt.Printf("收到消息 - ID: %d, 内容: %s\n",
 		request.GetMsgID(),
 		string(request.GetData()))
+	return nil
 }
 
 type Action struct{}
@@ -59,11 +60,13 @@ func main() {
 
 	// 创建客户端实例
 	c := client.NewClient(
-
-		handlers,  // 消息处理器映射
-		1024*1024, // 最大数据长度 (1MB)
 		new(Action),
+		client.WithHandlers(handlers),    // 消息处理器映射
+		client.WithMaxDataLen(1024*1024), // 最大数据长度 (1MB)
 	)
+
+	// 启动客户端
+	c.Start(context.Background())
 
 	// 确保程序退出时正确停止客户端
 	defer func() {
@@ -79,7 +82,7 @@ func main() {
 		signalChan,
 		syscall.SIGINT,  // Ctrl+C中断
 		syscall.SIGTERM, // 终止信号
-		os.Kill,         // 强制终止
+		//os.Kill,         // 强制终止
 	)
 
 	fmt.Println("客户端已启动，正在连接到服务器 127.0.0.1:2000...")

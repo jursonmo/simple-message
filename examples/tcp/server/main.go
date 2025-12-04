@@ -18,7 +18,7 @@ import (
 type Handler1 struct{}
 
 // Handle 实现消息处理接口
-func (h *Handler1) Handle(request connection.IRequest) {
+func (h *Handler1) Handle(request connection.IRequest) error {
 	// 可以通过以下方法获取消息数据和ID
 	data := request.GetData()
 	msgID := request.GetMsgID()
@@ -32,9 +32,17 @@ func (h *Handler1) Handle(request connection.IRequest) {
 	// 向客户端发送确认消息（MsgID=1）
 	if err := request.GetConnection().SendMsg(1, []byte("hello from server")); err != nil {
 		fmt.Printf("发送确认消息失败: %v\n", err)
-		return
+		return err
 	}
 	fmt.Printf("确认消息已发送 - MsgID: %d\n", msgID)
+
+	// 向客户端发送确认消息（MsgID=2）
+	if err := request.GetConnection().SendMsg(2, []byte("hello from server")); err != nil {
+		fmt.Printf("发送确认消息失败: %v\n", err)
+		return err
+	}
+	fmt.Printf("确认消息已发送 - MsgID: %d\n", 2)
+	return nil
 }
 
 // Listener 自定义监听器实现，包装net.Listener
@@ -107,14 +115,14 @@ func main() {
 	// 创建服务器实例
 	srv := server.NewServer(
 		customListener,
-		handlers,
-		1024*1024, // 最大数据长度 (1MB)
-		1024,      // 最大连接数
 		new(Action),
+		server.WithHandlers(handlers),
 	)
 
 	// 启动服务器，使用16个accept协程
-	done := srv.Start(16)
+	ctx, cancel := context.WithCancel(context.Background())
+	_ = cancel //TODO: 取消ctx时，应该可以关闭server
+	done := srv.Start(ctx, 16)
 	defer func() {
 		// 停止服务器并等待完成
 		srv.Stop()

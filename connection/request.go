@@ -12,6 +12,14 @@ type Request struct {
 	msgID uint32
 }
 
+func NewRequest(conn *Connection, msgID uint32, data []byte) *Request {
+	return &Request{
+		conn:  conn,
+		msgID: msgID,
+		data:  data,
+	}
+}
+
 func (m *Request) GetConnection() *Connection {
 	return m.conn
 }
