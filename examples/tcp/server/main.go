@@ -81,7 +81,7 @@ type Action struct{}
 
 // 连接错误回调
 func (l *Action) ConnErr(ctx context.Context, conn *connection.Connection, err error) {
-	fmt.Printf("连接错误: %v, 连接信息: %v\n", err, conn)
+	fmt.Printf("连接断开: %v, 连接信息: %v\n", err, conn)
 }
 
 // 连接建立回调
@@ -123,11 +123,26 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	_ = cancel //TODO: 取消ctx时，应该可以关闭server
 	done := srv.Start(ctx, 16)
+
 	defer func() {
 		// 停止服务器并等待完成
 		srv.Stop()
 		<-done
 		fmt.Println("服务器已完全停止")
+	}()
+
+	go func() {
+		time.Sleep(10 * time.Second)
+		fmt.Println("手动停止服务器，测试能否正常停止")
+		select {
+		case <-srv.Stop():
+			fmt.Println("服务器已手动停止并返回")
+		case <-time.After(3 * time.Second):
+			panic("服务器手动停止超时")
+		}
+		if srv.IsRunning() {
+			panic("服务器应该已停止")
+		}
 	}()
 
 	// 设置信号监听，处理程序退出

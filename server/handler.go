@@ -12,7 +12,8 @@ func (m *Server) accept(ctx context.Context) {
 	wg := &sync.WaitGroup{}
 	defer wg.Wait()
 	defer m.cancel()
-	for m.isRun.Load() {
+
+	for m.IsRunning() {
 		// 接受客户端的连接
 		conn, data, err := m.listener.Accept()
 		if err != nil {
@@ -39,6 +40,7 @@ func (m *Server) accept(ctx context.Context) {
 
 func (m *Server) handlerTcpConn(ctx context.Context, conn connection.Conn, data any) {
 	handlerManager := connection.NewHandlerManager(
+		ctx,
 		conn,
 		m.handleMsg,
 		m.maxDataLen,
@@ -51,8 +53,8 @@ func (m *Server) handlerTcpConn(ctx context.Context, conn connection.Conn, data 
 	}()
 
 	select {
-	case <-ctx.Done():
-		return
+	// case <-ctx.Done():  //ctx 取消时, handlerManager.Ctx() 也会取消, 只需保留 handlerManager.Ctx().Done() 即可
+	// 	return
 	case <-handlerManager.Ctx().Done():
 		return
 	}

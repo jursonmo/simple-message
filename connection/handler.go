@@ -2,7 +2,9 @@ package connection
 
 import (
 	"context"
+	"log"
 	"sync"
+	"time"
 
 	"github.com/jursonmo/simple-message/protocol"
 )
@@ -26,6 +28,7 @@ type HandlerManager struct {
 }
 
 func NewHandlerManager(
+	ctx context.Context,
 	readWriteCloser Conn,
 	handleMsg func(conn *Connection, message *protocol.Message),
 	maxDataLen uint32,
@@ -39,7 +42,7 @@ func NewHandlerManager(
 		done:            make(chan struct{}),
 	}
 	h.conn, h.msgChan = NewConnection(data)
-	h.ctx, h.cancel = context.WithCancel(context.Background())
+	h.ctx, h.cancel = context.WithCancel(ctx)
 
 	go func() {
 		defer close(h.done)
@@ -75,6 +78,26 @@ func (h *HandlerManager) GetConnection() *Connection {
 func (h *HandlerManager) Stop() <-chan struct{} {
 	h.stop()
 	return h.done
+}
+
+func (h *HandlerManager) MustStopWithTimeout(timeout time.Duration) {
+	h.stopAndWait(timeout, true)
+}
+
+func (h *HandlerManager) StopWithTimeout(timeout time.Duration) {
+	h.stopAndWait(timeout, false)
+}
+
+func (h *HandlerManager) stopAndWait(timeout time.Duration, panicOnTimeout bool) {
+	select {
+	case <-h.Stop():
+		return
+	case <-time.After(timeout):
+		if panicOnTimeout {
+			panic("HandlerManager stop timeout")
+		}
+		log.Printf("HandlerManager stop timeout: %v\n", timeout)
+	}
 }
 
 func (h *HandlerManager) Ctx() context.Context {

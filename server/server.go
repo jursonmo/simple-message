@@ -73,9 +73,10 @@ func (m *Server) Start(ctx context.Context, acceptAmount int) <-chan struct{} {
 
 		m.statusMu.Lock()
 		defer m.statusMu.Unlock()
-		m.isRun.Store(true)
+		m.setRunning(true)
+
 		go func() {
-			defer close(m.done)
+			defer m.stop()
 			wg := &sync.WaitGroup{}
 			defer wg.Wait()
 			wg.Add(acceptAmount)
@@ -90,17 +91,32 @@ func (m *Server) Start(ctx context.Context, acceptAmount int) <-chan struct{} {
 	return m.done
 }
 
-// Stop 停止所有服务组件
+// 两种方式可以停止server, 1. Stop 停止所有服务组件, 2. cancel  server's context,
+// 所以为了一致性，只由cancel context 来停止server，Stop() 其实就是封装调用 cancel 方法而已。
 func (m *Server) Stop() <-chan struct{} {
-	m.statusMu.Lock()
-	if !m.isRun.Load() {
-		m.statusMu.Unlock()
+	if m.cancel == nil {
 		return nil
 	}
-	m.isRun.Store(false)
+	m.cancel()
+	m.listener.Close() //make m.listener.Accept() return error --> accept()  return --> wg.Wait() --> stop() --> close(m.done)
+	return m.done
+}
+
+func (m *Server) stop() {
+	m.statusMu.Lock()
+	if !m.IsRunning() {
+		m.statusMu.Unlock()
+		return
+	}
+	m.setRunning(false)
 	m.statusMu.Unlock()
 
-	m.listener.Close()
-	m.cancel()
-	return m.done
+	close(m.done)
+}
+
+func (m *Server) setRunning(isRun bool) {
+	m.isRun.Store(isRun)
+}
+func (m *Server) IsRunning() bool {
+	return m.isRun.Load()
 }

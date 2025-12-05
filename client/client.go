@@ -6,6 +6,7 @@ import (
 	"maps"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/jursonmo/simple-message/connection"
 	"github.com/jursonmo/simple-message/protocol"
@@ -25,7 +26,8 @@ type Client struct {
 	maxDataLen  uint32
 	action      Action
 	done        chan struct{}
-	connPointer atomic.Pointer[connection.Connection]
+	stoped      atomic.Bool
+	connPointer atomic.Pointer[connection.Connection] //atomic.Value
 
 	stats *stats.HandlerStats
 }
@@ -103,21 +105,50 @@ func (c *Client) Start(ctx context.Context) {
 	}()
 }
 
+// 为了一致性，只由cancel context 来停止server，Stop() 其实就是封装调用 cancel 方法而已。
 func (c *Client) Stop() <-chan struct{} {
-	c.cancel()
+	if c.cancel != nil {
+		c.cancel()
+	}
 	return c.done
 }
 
+func (c *Client) IsStoped() bool {
+	return c.stoped.Load()
+}
+
 func (c *Client) start() {
+	var dialStartAt time.Time
 	for c.action != nil {
 		select {
 		case <-c.ctx.Done():
+			c.stoped.Store(true)
 			return
 		default:
 
 		}
+
+		dialStartAt = time.Now()
 		c.dial()
+		//为了避免过于频繁的拨号，设置最小拨号间隔为1秒, 至少等待1秒.(比如server 没有启动，dial() 会立即返回connection refused的错误)
+		SleepAtLeast(c.ctx, dialStartAt, time.Second)
 	}
+}
+
+// SleepAtLeast 确保在 ctx 取消前，至少 sleep  sleepAtLeast 时间
+func SleepAtLeast(ctx context.Context, start time.Time, sleepAtLeast time.Duration) {
+	elapsed := time.Since(start) // Go 1.9 引入了单调时钟（monotonic clock）支持, 确保elapsed不会是负数。
+	//保险措施，还是判断一下
+	if elapsed < 0 {
+		return
+	}
+	if elapsed >= sleepAtLeast {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, sleepAtLeast-elapsed)
+	defer cancel()
+	<-ctx.Done()
 }
 
 func (c *Client) SendMsg(MsgID uint32, Data []byte) error {
@@ -137,30 +168,32 @@ func (c *Client) sendMsgContext(ctx context.Context, MsgID uint32, Data []byte) 
 }
 
 func (c *Client) dial() {
-	if conn, data, err := c.action.DialContext(c.ctx); err != nil {
+	conn, data, err := c.action.DialContext(c.ctx)
+	if err != nil {
 		return
-	} else {
-		defer conn.Close()
-		handlerManager := connection.NewHandlerManager(
-			conn,
-			c.handleMsg,
-			c.maxDataLen,
-			c.action.ConnectedBegin,
-			data,
-		)
-		defer func() {
-			<-handlerManager.Stop()
-			c.action.ConnErr(c.ctx, handlerManager.GetConnection(), handlerManager.Err())
-		}()
+	}
 
-		c.connPointer.Store(handlerManager.GetConnection())
+	defer conn.Close()
+	handlerManager := connection.NewHandlerManager(
+		c.ctx,
+		conn,
+		c.handleMsg,
+		c.maxDataLen,
+		c.action.ConnectedBegin,
+		data,
+	)
+	defer func() {
+		//<-handlerManager.Stop()
+		handlerManager.MustStopWithTimeout(time.Second * 2)
+		c.action.ConnErr(c.ctx, handlerManager.GetConnection(), handlerManager.Err())
+	}()
 
-		select {
-		case <-c.ctx.Done():
-			return
-		case <-handlerManager.Ctx().Done():
-			return
-		}
+	c.connPointer.Store(handlerManager.GetConnection())
 
+	select {
+	// case <-c.ctx.Done():  //ctx 取消时, handlerManager.Ctx() 也会取消, 只需保留 handlerManager.Ctx().Done() 即可
+	// 	return
+	case <-handlerManager.Ctx().Done():
+		return
 	}
 }
