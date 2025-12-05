@@ -10,7 +10,7 @@ import (
 
 func (m *Server) accept(ctx context.Context) {
 	wg := &sync.WaitGroup{}
-	defer wg.Wait()
+	defer wg.Wait() // 等待所有连接处理 handlerTcpConn goroutine 退出
 	defer m.cancel()
 
 	for m.IsRunning() {
@@ -47,6 +47,7 @@ func (m *Server) handlerTcpConn(ctx context.Context, conn connection.Conn, data 
 		m.action.ConnectedBegin,
 		data,
 	)
+	// 等待handlerManager 退出
 	defer func() {
 		<-handlerManager.Stop()
 		m.action.ConnErr(ctx, handlerManager.GetConnection(), handlerManager.Err())
