@@ -20,7 +20,7 @@ type Connection struct {
 
 func NewConnection(conn net.Conn, data any) *Connection {
 	C := &Connection{
-		msgChan: make(chan *MessageBody),
+		msgChan: make(chan *MessageBody, 256),
 		conn:    conn,
 		data:    data,
 	}
