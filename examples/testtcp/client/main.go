@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"sync"
 	"syscall"
 	"time"
 
@@ -38,6 +39,7 @@ func (h *Handler1) Handle(request connection.IRequest) error {
 type Handler2 struct{}
 
 var HaveRemoveHandler2 = false // 用于标记是否已移除Handler2, 用于测试是否会收到移除后的消息
+var TestCloseConn sync.Once
 
 // Handle 实现消息处理接口，打印收到的消息ID和内容
 func (h *Handler2) Handle(request connection.IRequest) error {
@@ -46,6 +48,11 @@ func (h *Handler2) Handle(request connection.IRequest) error {
 		log.Printf("Handler2 已被移除，但是依然收到了消息 - ID: %d, 内容: %s\n", request.GetMsgID(), string(request.GetData()))
 		panic("Handler2 已被移除，应该不能收到消息")
 	}
+	// 测试关闭连接,看能不能让客户端停止并重连
+	TestCloseConn.Do(func() {
+		log.Printf("测试在业务处理的回调里关闭连接,看能不能让客户端停止并重连\n")
+		request.GetConnection().Close()
+	})
 	return nil
 }
 

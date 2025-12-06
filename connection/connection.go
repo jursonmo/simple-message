@@ -104,7 +104,7 @@ func (C *Connection) sendMsg(ctx context.Context, MsgID uint32, Data []byte) err
 }
 
 func (C *Connection) Close() {
-	C.cancel()
+	C.cancel() // 取消上下文, 通知所有发送消息的goroutine send() 退出, 对应的handlerManager 会stop() --> cancel, 从而停止所有任务.
 }
 
 func (C *Connection) Ctx() context.Context {
