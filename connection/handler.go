@@ -3,6 +3,7 @@ package connection
 import (
 	"context"
 	"log"
+	"net"
 	"sync"
 	"time"
 
@@ -16,7 +17,6 @@ type Handler interface {
 type HandlerManager struct {
 	readWriteCloser Conn
 	conn            *Connection
-	msgChan         <-chan *MessageBody
 	handleMsg       func(conn *Connection, message *protocol.Message)
 	decoder         *protocol.Decoder
 	ctx             context.Context
@@ -41,7 +41,7 @@ func NewHandlerManager(
 		decoder:         protocol.NewDecoder(maxDataLen),
 		done:            make(chan struct{}),
 	}
-	h.conn, h.msgChan = NewConnection(data)
+	h.conn = NewConnection(readWriteCloser.(net.Conn), data)
 	h.ctx, h.cancel = context.WithCancel(ctx)
 
 	go func() {
@@ -139,7 +139,7 @@ func (h *HandlerManager) send() {
 		select {
 		case <-h.conn.Ctx().Done():
 			return
-		case m := <-h.msgChan:
+		case m := <-h.conn.msgChan:
 			m.AckMessage(func() error {
 				message := m.GetMessage()
 				err = h.decoder.Marshal(h.readWriteCloser, message.MsgID, message.Data)

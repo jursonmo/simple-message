@@ -2,12 +2,15 @@ package connection
 
 import (
 	"context"
+	"fmt"
+	"net"
 	"sync"
 
 	"github.com/jursonmo/simple-message/protocol"
 )
 
 type Connection struct {
+	conn     net.Conn
 	msgChan  chan *MessageBody
 	ctx      context.Context
 	cancel   context.CancelFunc
@@ -15,13 +18,22 @@ type Connection struct {
 	data     any
 }
 
-func NewConnection(data any) (*Connection, <-chan *MessageBody) {
+func NewConnection(conn net.Conn, data any) *Connection {
 	C := &Connection{
 		msgChan: make(chan *MessageBody),
+		conn:    conn,
 		data:    data,
 	}
 	C.ctx, C.cancel = context.WithCancel(context.Background())
-	return C, C.msgChan
+	return C
+}
+
+func (c *Connection) String() string {
+	return fmt.Sprintf("%s-%v, data: %v", c.conn.LocalAddr().String(), c.conn.RemoteAddr().String(), c.data)
+}
+
+func (C *Connection) MsgChan() <-chan *MessageBody {
+	return C.msgChan
 }
 
 func (C *Connection) GetData() any {
