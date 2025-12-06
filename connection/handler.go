@@ -10,7 +10,7 @@ import (
 	"github.com/jursonmo/simple-message/protocol"
 )
 
-var useTaskgo bool = false
+var useTaskgo bool = true
 
 type Handler interface {
 	Handle(request IRequest) error
