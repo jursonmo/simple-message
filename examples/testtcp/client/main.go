@@ -122,9 +122,8 @@ func main() {
 	}()
 
 	go func() {
-		time.Sleep(time.Second * 16)
-
-		log.Println("取消客户端上下文, 客户端将停止连接")
+		time.Sleep(time.Second * 6)
+		log.Println("测试停止客户端: 取消客户端上下文, 客户端将停止连接")
 		cancel()
 		time.Sleep(time.Second)
 		if !c.IsStoped() {
