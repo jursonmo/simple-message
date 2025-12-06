@@ -3,14 +3,13 @@ package connection
 import (
 	"context"
 	"fmt"
-	"net"
 	"sync"
 
 	"github.com/jursonmo/simple-message/protocol"
 )
 
 type Connection struct {
-	conn     net.Conn
+	conn     Conn
 	msgChan  chan *MessageBody
 	ctx      context.Context
 	cancel   context.CancelFunc
@@ -18,7 +17,7 @@ type Connection struct {
 	data     any
 }
 
-func NewConnection(conn net.Conn, data any) *Connection {
+func NewConnection(conn Conn, data any) *Connection {
 	C := &Connection{
 		msgChan: make(chan *MessageBody, 256),
 		conn:    conn,

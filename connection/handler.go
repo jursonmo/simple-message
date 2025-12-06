@@ -3,7 +3,6 @@ package connection
 import (
 	"context"
 	"log"
-	"net"
 	"sync"
 	"time"
 
@@ -41,7 +40,7 @@ func NewHandlerManager(
 		decoder:         protocol.NewDecoder(maxDataLen),
 		done:            make(chan struct{}),
 	}
-	h.conn = NewConnection(readWriteCloser.(net.Conn), data)
+	h.conn = NewConnection(readWriteCloser, data)
 	h.ctx, h.cancel = context.WithCancel(ctx)
 
 	go func() {

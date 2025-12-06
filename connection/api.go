@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 )
 
 type Conn interface {
 	io.ReadWriteCloser
+	LocalAddr() net.Addr //增加这两个方法，用于获取本地和远程地址，方便打印。
+	RemoteAddr() net.Addr
 }
 
 var (

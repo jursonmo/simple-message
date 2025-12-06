@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -128,4 +129,12 @@ func (w *Conn) Close() error {
 	}
 	// 关闭底层连接
 	return w.conn.Close()
+}
+
+func (w *Conn) LocalAddr() net.Addr {
+	return w.conn.LocalAddr()
+}
+
+func (w *Conn) RemoteAddr() net.Addr {
+	return w.conn.RemoteAddr()
 }
