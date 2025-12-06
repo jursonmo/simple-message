@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"errors"
+	"log"
 	"maps"
 	"sync"
 	"sync/atomic"
@@ -129,8 +130,9 @@ func (c *Client) start() {
 		}
 
 		dialStartAt = time.Now()
-		c.dial()
-		//为了避免过于频繁的拨号，设置最小拨号间隔为1秒, 至少等待1秒.(比如server 没有启动，dial() 会立即返回connection refused的错误)
+		c.dialAndRun()
+		log.Printf("client dial and run cost: %v\n", time.Since(dialStartAt))
+		//为了避免过于频繁的拨号，设置最小拨号间隔为1秒, 至少等待1秒, 除非ctx 被cancel.(比如server 没有启动，dial() 会立即返回connection refused的错误)
 		SleepAtLeast(c.ctx, dialStartAt, time.Second)
 	}
 }
@@ -167,7 +169,7 @@ func (c *Client) sendMsgContext(ctx context.Context, MsgID uint32, Data []byte) 
 	return conn.SendMsgContext(ctx, MsgID, Data)
 }
 
-func (c *Client) dial() {
+func (c *Client) dialAndRun() {
 	conn, data, err := c.action.DialContext(c.ctx)
 	if err != nil {
 		return
@@ -183,9 +185,12 @@ func (c *Client) dial() {
 		data,
 	)
 	defer func() {
+		log.Println("handlerManager stop now")
 		//<-handlerManager.Stop()
-		handlerManager.MustStopWithTimeout(time.Second * 2)
+		//handlerManager.MustStopWithTimeout(time.Second * 2)
+		handlerManager.StopWithTimeout(time.Second * 2)
 		c.action.ConnErr(c.ctx, handlerManager.GetConnection(), handlerManager.Err())
+		log.Println("handlerManager stop done")
 	}()
 
 	c.connPointer.Store(handlerManager.GetConnection())

@@ -90,6 +90,8 @@ func (a *Action) ConnectedBegin(ctx context.Context, conn *connection.Connection
 		return
 	}
 	log.Printf("消息已发送 - MsgID: %d, 内容: %s\n", 1, "hello from client")
+	// time.Sleep(time.Second * 1)
+	// conn.Close()
 }
 
 func main() {

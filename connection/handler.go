@@ -6,14 +6,18 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jursonmo/simple-message/pkg/taskgo"
 	"github.com/jursonmo/simple-message/protocol"
 )
+
+var useTaskgo bool = false
 
 type Handler interface {
 	Handle(request IRequest) error
 }
 
 type HandlerManager struct {
+	sync.Once
 	readWriteCloser Conn
 	conn            *Connection
 	handleMsg       func(conn *Connection, message *protocol.Message)
@@ -24,6 +28,9 @@ type HandlerManager struct {
 	err     error
 	errOnce sync.Once
 	done    chan struct{}
+	// 任务管理器取消任务并返回后，会关闭done通道，表示handlerManager彻底停止。
+	// 如果返回错误，可以看到是哪个任务没有正常退出。方便排查问题。
+	taskmgr *taskgo.TaskGo
 }
 
 func NewHandlerManager(
@@ -43,6 +50,27 @@ func NewHandlerManager(
 	h.conn = NewConnection(readWriteCloser, data)
 	h.ctx, h.cancel = context.WithCancel(ctx)
 
+	if useTaskgo {
+		h.taskmgr = taskgo.NewTaskGo(h.ctx)
+		// 启动任务管理器
+		h.taskmgr.Go("call begin", func(ctx context.Context) error {
+			connectedBegin(h.ctx, h.conn)
+			log.Printf("HandlerManager connected begin cb over\n")
+			return nil
+		})
+		h.taskmgr.Go("read", func(ctx context.Context) error {
+			defer h.stop()
+			return h.read()
+		})
+		h.taskmgr.Go("send", func(ctx context.Context) error {
+			defer h.stop()
+			return h.send()
+		})
+		log.Printf("HandlerManager start ok\n")
+		return h
+	}
+
+	// 启动goroutine任务,退出就关闭done通道。taskgo是在taskmgr结束后关闭done通道。
 	go func() {
 		defer close(h.done)
 		wg := &sync.WaitGroup{}
@@ -80,14 +108,22 @@ func (h *HandlerManager) Stop() <-chan struct{} {
 }
 
 func (h *HandlerManager) MustStopWithTimeout(timeout time.Duration) {
-	h.stopAndWait(timeout, true)
+	if useTaskgo {
+		h.stopTaskWithTimeout(timeout, true)
+		return
+	}
+	h.stopWithTimeout(timeout, true)
 }
 
 func (h *HandlerManager) StopWithTimeout(timeout time.Duration) {
-	h.stopAndWait(timeout, false)
+	if useTaskgo {
+		h.stopTaskWithTimeout(timeout, false)
+		return
+	}
+	h.stopWithTimeout(timeout, false)
 }
 
-func (h *HandlerManager) stopAndWait(timeout time.Duration, panicOnTimeout bool) {
+func (h *HandlerManager) stopWithTimeout(timeout time.Duration, panicOnTimeout bool) {
 	select {
 	case <-h.Stop():
 		return
@@ -99,20 +135,37 @@ func (h *HandlerManager) stopAndWait(timeout time.Duration, panicOnTimeout bool)
 	}
 }
 
+func (h *HandlerManager) stopTaskWithTimeout(d time.Duration, panicOnTimeout bool) {
+	err := h.taskmgr.StopAndWait(d)
+	if err != nil {
+		log.Printf("HandlerManager stop task timeout: %v\n", err)
+		if panicOnTimeout {
+			panic(err)
+		}
+	}
+	close(h.done)
+	log.Printf("HandlerManager stop() task over\n")
+}
+
 func (h *HandlerManager) Ctx() context.Context {
 	return h.ctx
 }
 
 func (h *HandlerManager) Err() error {
-	<-h.done
+	//<-h.done
 	return h.err
 }
 
 func (h *HandlerManager) stop() {
-	h.merr(ErrIsClose)
-	h.conn.Close()
-	h.readWriteCloser.Close()
-	h.cancel()
+	// 只执行一次
+	h.Once.Do(func() {
+		log.Printf("HandlerManager stop() \n")
+		h.merr(ErrIsClose)
+		h.conn.Close()
+		h.readWriteCloser.Close()
+		h.cancel()
+		log.Printf("HandlerManager stop() over\n")
+	})
 }
 
 func (h *HandlerManager) merr(err error) {
@@ -121,23 +174,35 @@ func (h *HandlerManager) merr(err error) {
 	})
 }
 
-func (h *HandlerManager) read() {
+// 主动退出时，read 任务的退出是靠close(readWriteCloser)触发的。
+// 但是我发现不是每次close(readWriteCloser)都会触发read()退出。taskmgr可以看有时read()有时不会退出。
+func (h *HandlerManager) read() error {
+	var err error
+	var message *protocol.Message
+	defer func() {
+		log.Printf("HandlerManager read() quit, err:%v\n", err)
+	}()
+
 	for {
-		if message, err := h.decoder.Unmarshal(h.readWriteCloser); err != nil {
+		if message, err = h.decoder.Unmarshal(h.readWriteCloser); err != nil {
 			h.merr(err)
-			return
+			return err
 		} else {
 			h.handleMsg(h.conn, message)
 		}
 	}
 }
 
-func (h *HandlerManager) send() {
+func (h *HandlerManager) send() error {
 	var err error
+	defer func() {
+		log.Printf("HandlerManager send() quit, err:%v\n", err)
+	}()
+
 	for {
 		select {
 		case <-h.conn.Ctx().Done():
-			return
+			return h.conn.Ctx().Err()
 		case m := <-h.conn.msgChan:
 			m.AckMessage(func() error {
 				message := m.GetMessage()
@@ -147,11 +212,11 @@ func (h *HandlerManager) send() {
 
 			if err != nil {
 				h.merr(err)
-				return
+				return err
 			}
 
 		case <-h.ctx.Done():
-			return
+			return h.ctx.Err()
 		}
 	}
 }

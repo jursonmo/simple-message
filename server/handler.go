@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/jursonmo/simple-message/connection"
 	"github.com/jursonmo/simple-message/protocol"
@@ -49,7 +50,8 @@ func (m *Server) handlerTcpConn(ctx context.Context, conn connection.Conn, data 
 	)
 	// 等待handlerManager 退出
 	defer func() {
-		<-handlerManager.Stop()
+		//<-handlerManager.Stop()
+		handlerManager.StopWithTimeout(time.Second * 2)
 		m.action.ConnErr(ctx, handlerManager.GetConnection(), handlerManager.Err())
 	}()
 
