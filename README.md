@@ -64,11 +64,12 @@ go get github.com/jursonmo/simple-message
 // 处理MsgID=1的消息
 type Handler1 struct{}
 
-func (h *Handler1) Handle(request connection.IRequest) {
+func (h *Handler1) Handle(request connection.IRequest) error {
     fmt.Printf("收到消息 - ID: %d, 内容: %s\n",
         request.GetMsgID(),
         string(request.GetData()))
     // 业务处理逻辑...
+    return nil
 }
 ```
 
@@ -124,13 +125,16 @@ func main() {
     // 创建服务器实例
     srv := server.NewServer(
         &TCPListener{listener: listener},
-        handlers,
-        1024*1024, // 最大数据长度
-        1024,      // 最大连接数
         &ServerAction{},
+        server.WithHandlers(handlers),
+        server.WithMaxDataLen(1024*1024), // 最大数据长度
+        server.WithMaxConnCount(1024),      // 最大连接数
     )
 
-    // 启动服务器（16个accept协程）
+    	// 启动服务器，使用16个accept协程
+	ctx, cancel := context.WithCancel(context.Background())
+	_ = cancel //取消ctx时，可以关闭server
+	done := srv.Start(ctx, 16)
     done := srv.Start(16)
     defer func() {
         srv.Stop()
@@ -147,10 +151,11 @@ func main() {
 ```go
 type ClientHandler struct{}
 
-func (h *ClientHandler) Handle(request connection.IRequest) {
+func (h *ClientHandler) Handle(request connection.IRequest) error {
     fmt.Printf("收到消息 - ID: %d, 内容: %s\n",
         request.GetMsgID(),
         string(request.GetData()))
+    return nil
 }
 ```
 
@@ -190,15 +195,30 @@ func main() {
 
     // 创建客户端实例
     c := client.NewClient(
-        handlers,
-        1024*1024, // 最大数据长度
         &ClientAction{},
+        client.WithHandlers(handlers),
+        client.WithMaxDataLen(1024*1024), // 最大数据长度
     )
+
+    // 启动客户端
+	ctx, cancel := context.WithCancel(context.Background())
+	_ = cancel // 忽略取消函数, 因为我们不会主动取消上下文
+
+	c.Start(ctx) // 启动客户端, 连接断开会自动拨号，直到上下文取消
+
     defer func() {
         <-c.Stop()
     }()
 
-    // 等待退出信号...
+   	// 设置信号监听，处理程序退出
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(
+		signalChan,
+		syscall.SIGINT,  // Ctrl+C中断
+		syscall.SIGTERM, // 终止信号
+	)
+    // 等待退出信号
+	<-signalChan
 }
 ```
 
