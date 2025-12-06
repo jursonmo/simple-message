@@ -107,6 +107,8 @@ func main() {
 
 	// 启动客户端
 	ctx, cancel := context.WithCancel(context.Background())
+	_ = cancel // 忽略取消函数, 因为我们不会主动取消上下文
+
 	c.Start(ctx) // 启动客户端, 连接断开会自动拨号，直到上下文取消
 
 	time.Sleep(time.Second * 1)
@@ -119,19 +121,6 @@ func main() {
 		log.Println("取消 MsgID=2 的 Handler2")
 		c.RemoveHandler(2)
 		HaveRemoveHandler2 = true
-	}()
-
-	go func() {
-		time.Sleep(time.Second * 16)
-
-		log.Println("取消客户端上下文, 客户端将停止连接")
-		cancel()
-		time.Sleep(time.Second)
-		if !c.IsStoped() {
-			panic("客户端未停止")
-		} else {
-			log.Println("客户端已停止")
-		}
 	}()
 
 	// 确保程序退出时正确停止客户端

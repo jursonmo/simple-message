@@ -3,10 +3,11 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
+	"log"
 	"net"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -23,7 +24,7 @@ func (h *Handler1) Handle(request connection.IRequest) error {
 	data := request.GetData()
 	msgID := request.GetMsgID()
 	// 打印收到的消息
-	fmt.Printf("收到消息 - MsgID: %d, Data: %s\n", msgID, string(data))
+	log.Printf("收到消息 - MsgID: %d, Data: %s\n", msgID, string(data))
 
 	// 此处可添加消息处理逻辑
 	// 模拟处理延迟
@@ -31,17 +32,17 @@ func (h *Handler1) Handle(request connection.IRequest) error {
 
 	// 向客户端发送确认消息（MsgID=1）
 	if err := request.GetConnection().SendMsg(1, []byte("hello from server")); err != nil {
-		fmt.Printf("发送确认消息失败: %v\n", err)
+		log.Printf("发送确认消息失败: %v\n", err)
 		return err
 	}
-	fmt.Printf("确认消息已发送 - MsgID: %d\n", msgID)
+	log.Printf("确认消息已发送 - MsgID: %d\n", msgID)
 
 	// 向客户端发送确认消息（MsgID=2）
 	if err := request.GetConnection().SendMsg(2, []byte("hello from server")); err != nil {
-		fmt.Printf("发送确认消息失败: %v\n", err)
+		log.Printf("发送确认消息失败: %v\n", err)
 		return err
 	}
-	fmt.Printf("确认消息已发送 - MsgID: %d\n", 2)
+	log.Printf("确认消息已发送 - MsgID: %d\n", 2)
 	return nil
 }
 
@@ -55,13 +56,13 @@ func (l *Listener) Accept() (connection.Conn, any, error) {
 	for {
 		if conn, err := l.listener.Accept(); err != nil {
 			if errors.Is(err, net.ErrClosed) {
-				fmt.Println("监听器已关闭，正常退出")
+				log.Println("监听器已关闭，正常退出")
 				return nil, nil, err
 			}
 
 			// 2. 判断是否为临时错误（可重试）
 			if netErr, ok := err.(net.Error); ok && netErr.Temporary() {
-				fmt.Printf("临时错误: %v，将重试\n", err)
+				log.Printf("临时错误: %v，将重试\n", err)
 				continue
 			}
 
@@ -81,15 +82,15 @@ type Action struct{}
 
 // 连接错误回调
 func (l *Action) ConnErr(ctx context.Context, conn *connection.Connection, err error) {
-	fmt.Printf("连接断开: %v, 连接信息: %v\n", err, conn)
+	log.Printf("连接断开: %v, 连接信息: %v\n", err, conn)
 }
 
 // 连接建立回调
 func (l *Action) ConnectedBegin(ctx context.Context, conn *connection.Connection) {
-	fmt.Printf("新连接建立: %v\n", conn)
+	log.Printf("新连接建立: %v\n", conn)
 	// 向新连接发送欢迎消息
 	if err := conn.SendMsg(1, []byte("欢迎连接到服务器")); err != nil {
-		fmt.Printf("发送消息失败: %v\n", err)
+		log.Printf("发送消息失败: %v\n", err)
 	}
 }
 
@@ -97,7 +98,7 @@ func main() {
 	// 创建TCP监听器，监听2000端口
 	listener, err := net.Listen("tcp", ":2000")
 	if err != nil {
-		fmt.Printf("创建监听器失败: %v\n", err)
+		log.Printf("创建监听器失败: %v\n", err)
 		return
 	}
 	defer listener.Close()
@@ -126,25 +127,12 @@ func main() {
 
 	defer func() {
 		// 停止服务器并等待完成
+		log.Println("关闭前, goroutine 数量:", runtime.NumGoroutine())
 		srv.Stop()
 		<-done
-		fmt.Println("服务器已完全停止")
+		log.Println("服务器已完全停止")
+		log.Println("关闭后, goroutine 数量:", runtime.NumGoroutine())
 	}()
-
-	go func() {
-		time.Sleep(10 * time.Second)
-		fmt.Println("手动停止服务器，测试能否正常停止")
-		select {
-		case <-srv.Stop():
-			fmt.Println("服务器已手动停止并返回")
-		case <-time.After(3 * time.Second):
-			panic("服务器手动停止超时")
-		}
-		if srv.IsRunning() {
-			panic("服务器应该已停止")
-		}
-	}()
-
 	// 设置信号监听，处理程序退出
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(
@@ -154,14 +142,14 @@ func main() {
 		//os.Kill,       // 强制终止
 	)
 
-	fmt.Println("服务器已启动，监听端口: 2000")
-	fmt.Println("按Ctrl+C停止服务器")
+	log.Println("服务器已启动，监听端口: 2000")
+	log.Println("按Ctrl+C停止服务器")
 
 	// 等待退出信号或服务器完成信号
 	select {
 	case <-done:
-		fmt.Println("服务器正常退出")
+		log.Println("服务器正常退出")
 	case sig := <-signalChan:
-		fmt.Printf("收到退出信号: %v，正在停止服务器...\n", sig)
+		log.Printf("收到退出信号: %v，正在停止服务器...\n", sig)
 	}
 }
