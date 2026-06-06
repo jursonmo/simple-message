@@ -37,7 +37,7 @@ func main() {
 		<-ctx.Done()
 		panic(fmt.Errorf("tasksleep4 panic")) //测试panic, 能否被捕获。
 		//panic("tasksleep4 panic")
-		return nil
+		//return nil
 	})
 	taskMgr.Go("tasksleep5", func(ctx context.Context) error {
 		time.Sleep(time.Second * 5)
