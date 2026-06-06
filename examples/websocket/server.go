@@ -94,7 +94,10 @@ func (l *WebSocketListener) handleWS(w http.ResponseWriter, r *http.Request) {
 // Accept 实现 Listener 接口，等待并返回新的 WebSocket 连接
 func (l *WebSocketListener) Accept() (connection.Conn, any, error) {
 	select {
-	case conn := <-l.connChan:
+	case conn, ok := <-l.connChan:
+		if !ok || conn == nil {
+			return nil, nil, net.ErrClosed
+		}
 		// 返回连接、自定义数据（这里返回请求头信息示例）
 		return conn, map[string]string{"type": "websocket"}, nil
 	case <-l.closeChan:
