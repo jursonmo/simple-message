@@ -21,6 +21,8 @@ var (
 
 type Client struct {
 	sync.RWMutex
+	startOnce   sync.Once
+	lifecycleMu sync.Mutex
 	handler     map[uint32]connection.Handler
 	ctx         context.Context
 	cancel      context.CancelFunc
@@ -96,33 +98,46 @@ func (c *Client) handleMsg(conn *connection.Connection, msg *protocol.Message) {
 }
 
 func (c *Client) Start(ctx context.Context) {
-	c.ctx, c.cancel = context.WithCancel(ctx)
+	c.startOnce.Do(func() {
+		clientCtx, cancel := context.WithCancel(ctx)
+		done := make(chan struct{})
 
-	c.done = make(chan struct{})
-	go func() {
-		defer close(c.done)
-		c.start()
-		c.cancel()
-	}()
+		c.lifecycleMu.Lock()
+		c.ctx = clientCtx
+		c.cancel = cancel
+		c.done = done
+		c.stoped.Store(false)
+		c.lifecycleMu.Unlock()
+
+		go func() {
+			defer close(done)
+			c.start(clientCtx)
+			cancel()
+		}()
+	})
 }
 
-// 为了一致性，只由cancel context 来停止server，Stop() 其实就是封装调用 cancel 方法而已。
 func (c *Client) Stop() <-chan struct{} {
-	if c.cancel != nil {
-		c.cancel()
+	c.lifecycleMu.Lock()
+	cancel := c.cancel
+	done := c.done
+	c.lifecycleMu.Unlock()
+
+	if cancel != nil {
+		cancel()
 	}
-	return c.done
+	return done
 }
 
 func (c *Client) IsStoped() bool {
 	return c.stoped.Load()
 }
 
-func (c *Client) start() {
+func (c *Client) start(ctx context.Context) {
 	var dialStartAt time.Time
 	for c.action != nil {
 		select {
-		case <-c.ctx.Done():
+		case <-ctx.Done():
 			c.stoped.Store(true)
 			return
 		default:
@@ -130,10 +145,10 @@ func (c *Client) start() {
 		}
 
 		dialStartAt = time.Now()
-		c.dialAndRun()
+		c.dialAndRun(ctx)
 		log.Printf("client dial and run cost: %v\n", time.Since(dialStartAt))
 		//为了避免过于频繁的拨号，设置最小拨号间隔为1秒, 至少等待1秒, 除非ctx 被cancel.(比如server 没有启动，dial() 会立即返回connection refused的错误)
-		SleepAtLeast(c.ctx, dialStartAt, time.Second)
+		SleepAtLeast(ctx, dialStartAt, time.Second)
 	}
 }
 
@@ -169,15 +184,15 @@ func (c *Client) sendMsgContext(ctx context.Context, MsgID uint32, Data []byte) 
 	return conn.SendMsgContext(ctx, MsgID, Data)
 }
 
-func (c *Client) dialAndRun() {
-	conn, data, err := c.action.DialContext(c.ctx)
+func (c *Client) dialAndRun(ctx context.Context) {
+	conn, data, err := c.action.DialContext(ctx)
 	if err != nil {
 		return
 	}
 
 	defer conn.Close()
 	handlerManager := connection.NewHandlerManager(
-		c.ctx,
+		ctx,
 		conn,
 		c.handleMsg,
 		c.maxDataLen,
@@ -189,7 +204,7 @@ func (c *Client) dialAndRun() {
 		//<-handlerManager.Stop()
 		//handlerManager.MustStopWithTimeout(time.Second * 2)
 		handlerManager.StopWithTimeout(time.Second * 2)
-		c.action.ConnErr(c.ctx, handlerManager.GetConnection(), handlerManager.Err())
+		c.action.ConnErr(ctx, handlerManager.GetConnection(), handlerManager.Err())
 		log.Println("handlerManager stop done")
 	}()
 
