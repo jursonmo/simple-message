@@ -67,6 +67,10 @@ func NewServer(
 
 // Start 启动代理服务的各个组件
 func (m *Server) Start(ctx context.Context, acceptAmount int) <-chan struct{} {
+	if acceptAmount <= 0 {
+		acceptAmount = 1
+	}
+
 	m.startOnce.Do(func() {
 		m.ctx, m.cancel = context.WithCancel(ctx)
 		m.done = make(chan struct{})
