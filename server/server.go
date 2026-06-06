@@ -76,6 +76,11 @@ func (m *Server) Start(ctx context.Context, acceptAmount int) <-chan struct{} {
 		m.setRunning(true)
 
 		go func() {
+			go func() {
+				<-m.ctx.Done()
+				m.listener.Close()
+			}()
+
 			defer m.stop()
 			wg := &sync.WaitGroup{}
 			defer wg.Wait() // 等待所有accept goroutine 退出<--等待handlerTcpConn 退出<--等待handlerManager 退出
