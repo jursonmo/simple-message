@@ -29,19 +29,43 @@ func NewHandlerStats() *HandlerStats {
 
 func (s *HandlerStats) GetStatistic(MsgID uint32) HandlerStatistic {
 	s.RLock()
-	defer s.RUnlock()
-	if stat, ok := s.Statistic[MsgID]; ok {
+	stat, ok := s.Statistic[MsgID]
+	s.RUnlock()
+
+	if !ok {
 		return HandlerStatistic{
-			MsgID:         stat.MsgID,
-			SuccessPacket: stat.SuccessPacket,
-			SuccessBytes:  stat.SuccessBytes,
-			FailedPacket:  stat.FailedPacket,
-			FailedBytes:   stat.FailedBytes,
+			MsgID: MsgID,
 		}
 	}
+
+	stat.Lock()
+	defer stat.Unlock()
 	return HandlerStatistic{
+		MsgID:         stat.MsgID,
+		SuccessPacket: stat.SuccessPacket,
+		SuccessBytes:  stat.SuccessBytes,
+		FailedPacket:  stat.FailedPacket,
+		FailedBytes:   stat.FailedBytes,
+	}
+}
+
+func (s *HandlerStats) getOrCreateStatistic(MsgID uint32) *HandlerStatistic {
+	s.Lock()
+	defer s.Unlock()
+
+	if stat, ok := s.Statistic[MsgID]; ok {
+		return stat
+	}
+
+	stat := &HandlerStatistic{
 		MsgID: MsgID,
 	}
+	s.Statistic[MsgID] = stat
+	return stat
+}
+
+func (s *HandlerStats) GetUnknownMsg() int64 {
+	return atomic.LoadInt64(&s.UnknownMsg)
 }
 
 func (s *HandlerStats) AddSuccessBytes(MsgID uint32, bytes uint64) {
@@ -52,39 +76,20 @@ func (s *HandlerStats) AddFailedBytes(MsgID uint32, bytes uint64) {
 }
 
 func (s *HandlerStats) AddBytes(MsgID uint32, bytes uint64, success bool) {
-	s.RLock()
-	stat, ok := s.Statistic[MsgID]
-	s.RUnlock()
+	stat := s.getOrCreateStatistic(MsgID)
 
-	if ok {
-		stat.Lock()
-		defer stat.Unlock()
-		if success {
-			stat.SuccessPacket++
-			stat.SuccessBytes += bytes
-			return
-		}
-
-		stat.FailedPacket++
-		stat.FailedBytes += bytes
+	stat.Lock()
+	defer stat.Unlock()
+	if success {
+		stat.SuccessPacket++
+		stat.SuccessBytes += bytes
 		return
 	}
 
-	hs := &HandlerStatistic{
-		MsgID: MsgID,
-	}
-	if !success {
-		hs.FailedPacket = 1
-		hs.FailedBytes = bytes
-	} else {
-		hs.SuccessPacket = 1
-		hs.SuccessBytes = bytes
-	}
-
-	s.Lock()
-	s.Statistic[MsgID] = hs
-	s.Unlock()
+	stat.FailedPacket++
+	stat.FailedBytes += bytes
 }
+
 func (s *HandlerStats) IncUnknownMsg() {
 	atomic.AddInt64(&s.UnknownMsg, 1)
 }
