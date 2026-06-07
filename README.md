@@ -183,6 +183,13 @@ go run ./examples/websocket/server
 go run ./examples/websocket/client
 ```
 
+WebSocket 认证示例：
+
+```bash
+go run ./examples/websocket_auth/server
+go run ./examples/websocket_auth/client
+```
+
 运行测试：
 
 ```bash
@@ -249,7 +256,7 @@ userID, ok := conn.LoadProperty("user_id")
 
 ## 认证示例
 
-`examples/tcp_auth` 演示了一种不会阻塞 `Accept()` 的认证方式：服务端接入 TCP 后立即返回连接，客户端连接成功后先发送认证消息 `MsgID=1000`，服务端验证用户名密码后返回 `MsgID=1001`。
+`examples/tcp_auth` 和 `examples/websocket_auth` 演示了一种不会阻塞 `Accept()` 的认证方式：服务端接入连接后立即返回，客户端连接成功后先发送认证消息 `MsgID=1000`，服务端验证用户名密码后返回 `MsgID=1001`。
 
 认证成功后，服务端把会话信息保存到连接属性中：
 
