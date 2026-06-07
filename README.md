@@ -169,6 +169,13 @@ go run ./examples/tcp/server
 go run ./examples/tcp/client
 ```
 
+TCP 认证示例：
+
+```bash
+go run ./examples/tcp_auth/server
+go run ./examples/tcp_auth/client
+```
+
 WebSocket 示例：
 
 ```bash
@@ -239,6 +246,27 @@ _ = conn.SendMsg(1, []byte("pong"))
 conn.StoreProperty("user_id", 1001)
 userID, ok := conn.LoadProperty("user_id")
 ```
+
+## 认证示例
+
+`examples/tcp_auth` 演示了一种不会阻塞 `Accept()` 的认证方式：服务端接入 TCP 后立即返回连接，客户端连接成功后先发送认证消息 `MsgID=1000`，服务端验证用户名密码后返回 `MsgID=1001`。
+
+认证成功后，服务端把会话信息保存到连接属性中：
+
+```go
+conn.StoreProperty("auth_session", session)
+```
+
+业务 handler 可以通过包装器统一要求认证：
+
+```go
+handlers := map[uint32]connection.Handler{
+	1000: &AuthHandler{},
+	1:    RequireAuth(&HelloHandler{}),
+}
+```
+
+这种方式把慢认证限制在单条连接自己的读写 goroutine 中，不会因为某个客户端迟迟不发送用户名密码而阻塞服务端继续接受新连接。
 
 ## 扩展传输协议
 
