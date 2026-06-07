@@ -281,7 +281,7 @@ func TestClientHandleMsgUnknownIncrementsStats(t *testing.T) {
 	}
 	stat := c.stats.GetStatistic(404)
 	if stat.SuccessPacket != 0 || stat.FailedPacket != 0 {
-		t.Fatalf("unexpected stats for unknown message: %+v", stat)
+		t.Fatalf("unexpected stats for unknown message: %+v", &stat)
 	}
 }
 
